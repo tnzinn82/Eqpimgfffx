@@ -11,14 +11,14 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads'),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}_${Math.round(Math.random()*1e9)}${ext}`);
+    cb(null, `${Date.now()}_${Math.round(Math.random() * 1e9)}${ext}`);
   }
 });
 const upload = multer({ storage });
 
 app.use(express.static('uploads'));
 
-// Rota principal - upload automático
+// Rota principal - exibe página de upload manual
 app.get('/', (req, res) => {
   res.send(`
   <!DOCTYPE html>
@@ -93,7 +93,8 @@ app.get('/', (req, res) => {
         cursor: pointer;
         animation: pulse 3s infinite;
         transition: all 0.3s ease;
-        display: none;
+        display: block;
+        margin: 0 auto;
       }
 
       button:hover {
@@ -111,17 +112,22 @@ app.get('/', (req, res) => {
     <h1>EQP IMP - UPLOAD</h1>
     <div class="container">
       <input id="fileInput" type="file" accept="image/*" />
+      <button id="btnUpload">UPLOAD</button>
     </div>
 
     <script>
       const fileInput = document.getElementById('fileInput');
-      fileInput.addEventListener('change', async () => {
+      const btnUpload = document.getElementById('btnUpload');
+
+      btnUpload.addEventListener('click', async () => {
         const file = fileInput.files[0];
-        if (!file) return;
+        if (!file) {
+          alert('Selecione uma imagem primeiro.');
+          return;
+        }
+
         const formData = new FormData();
         formData.append('image', file);
-
-        // mostra mensagem ou loader aqui se quiser
 
         const res = await fetch('/upload', {
           method: 'POST',
@@ -130,7 +136,6 @@ app.get('/', (req, res) => {
 
         const data = await res.json();
         if (data.filename) {
-          // redireciona pra página de upload com preview e botão de download
           window.location.href = '/upload/' + data.filename;
         } else {
           alert('Erro ao enviar a imagem.');
@@ -142,13 +147,13 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Upload route
+// Rota de upload
 app.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Arquivo não encontrado.' });
   res.json({ filename: req.file.filename });
 });
 
-// Página upload + preview + link + botão download animado
+// Página pós-upload
 app.get('/upload/:filename', (req, res) => {
   const file = req.params.filename;
   const fullUrl = `${req.protocol}://${req.get('host')}/${file}`;
@@ -254,7 +259,6 @@ app.get('/upload/:filename', (req, res) => {
             clearInterval(interval);
             btnDownload.textContent = 'Baixar Imagem';
 
-            // Cria link temporário para forçar download
             const a = document.createElement('a');
             a.href = '${fullUrl}';
             a.download = '${file}';
@@ -265,7 +269,6 @@ app.get('/upload/:filename', (req, res) => {
         }, 1000);
       });
 
-      // Clique na URL copia o link pro clipboard
       linkBox.addEventListener('click', () => {
         navigator.clipboard.writeText(linkBox.textContent)
           .then(() => alert('Link copiado!'))
