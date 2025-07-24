@@ -1,283 +1,200 @@
 const express = require('express');
 const multer = require('multer');
-const fs = require('fs');
 const path = require('path');
-
+const fs = require('fs');
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 3000;
 
-// Config multer com pasta uploads e renomeia arquivos com extensão
+// Pasta pública para servir imagens
+app.use('/uploads', express.static('uploads'));
+app.use(express.static('public'));
+app.use(express.urlencoded({ extended: true }));
+
+// Configurando storage do multer
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads'),
+  destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}_${Math.round(Math.random() * 1e9)}${ext}`);
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, unique + path.extname(file.originalname));
   }
 });
 const upload = multer({ storage });
 
-app.use(express.static('uploads'));
-
-// Rota principal - exibe página de upload manual
+// Página inicial com o formulário de upload (faz upload automático)
 app.get('/', (req, res) => {
   res.send(`
-  <!DOCTYPE html>
-  <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>EQP IMP - UPLOAD</title>
-    <style>
-      * {
-        margin: 0; padding: 0; box-sizing: border-box;
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EQP IMP - UPLOAD</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+    body {
+      background: #0f0f0f;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      animation: fadeIn 1s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    h1 {
+      font-size: 2.5em;
+      margin-bottom: 20px;
+      color: #0ff;
+      text-shadow: 0 0 10px #0ff5;
+      animation: glow 2s infinite alternate;
+    }
+
+    @keyframes glow {
+      from { text-shadow: 0 0 5px #0ff5; }
+      to { text-shadow: 0 0 20px #0ff; }
+    }
+
+    form {
+      background: #1a1a1a;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px #000a;
+    }
+
+    input[type="file"] {
+      background: #000;
+      padding: 10px;
+      border: 2px dashed #0ff8;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>EQP IMP - UPLOAD</h1>
+  <form id="uploadForm" enctype="multipart/form-data" method="POST" action="/upload">
+    <input type="file" name="image" id="fileInput" accept="image/*" />
+  </form>
+
+  <script>
+    document.getElementById('fileInput').addEventListener('change', function () {
+      if (this.files.length > 0) {
+        document.getElementById('uploadForm').submit();
       }
-      body {
-        font-family: 'Arial', sans-serif;
-        background: radial-gradient(circle at top, #111, #000);
-        color: white;
-        text-align: center;
-        height: 100vh;
-        overflow: hidden;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex-direction: column;
-        animation: fadeIn 1.2s ease;
-      }
-
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-
-      h1 {
-        font-size: 2.4em;
-        margin-bottom: 20px;
-        color: #0ff;
-        text-shadow: 0 0 10px #0ff8, 0 0 20px #0ff4;
-        animation: float 2.5s ease-in-out infinite;
-      }
-
-      @keyframes float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-8px); }
-      }
-
-      .container {
-        background: rgba(255,255,255,0.03);
-        padding: 20px;
-        border-radius: 15px;
-        backdrop-filter: blur(6px);
-        box-shadow: 0 0 10px #0ff3;
-        width: 90%;
-        max-width: 400px;
-        animation: fadeIn 1.5s ease 0.3s both;
-      }
-
-      input[type="file"] {
-        margin-top: 10px;
-        margin-bottom: 20px;
-        width: 100%;
-        background: none;
-        color: white;
-        cursor: pointer;
-      }
-
-      button {
-        padding: 10px 20px;
-        background: linear-gradient(45deg, #0ff, #08f, #0ff);
-        border: none;
-        border-radius: 10px;
-        color: black;
-        font-weight: bold;
-        cursor: pointer;
-        animation: pulse 3s infinite;
-        transition: all 0.3s ease;
-        display: block;
-        margin: 0 auto;
-      }
-
-      button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 0 20px #0ff8;
-      }
-
-      @keyframes pulse {
-        0%, 100% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-      }
-    </style>
-  </head>
-  <body>
-    <h1>EQP IMP - UPLOAD</h1>
-    <div class="container">
-      <input id="fileInput" type="file" accept="image/*" />
-      <button id="btnUpload">UPLOAD</button>
-    </div>
-
-    <script>
-      const fileInput = document.getElementById('fileInput');
-      const btnUpload = document.getElementById('btnUpload');
-
-      btnUpload.addEventListener('click', async () => {
-        const file = fileInput.files[0];
-        if (!file) {
-          alert('Selecione uma imagem primeiro.');
-          return;
-        }
-
-        const formData = new FormData();
-        formData.append('image', file);
-
-        const res = await fetch('/upload', {
-          method: 'POST',
-          body: formData
-        });
-
-        const data = await res.json();
-        if (data.filename) {
-          window.location.href = '/upload/' + data.filename;
-        } else {
-          alert('Erro ao enviar a imagem.');
-        }
-      });
-    </script>
-  </body>
-  </html>
+    });
+  </script>
+</body>
+</html>
   `);
 });
 
-// Rota de upload
+// Rota POST para fazer upload
 app.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Arquivo não encontrado.' });
-  res.json({ filename: req.file.filename });
+  const file = req.file;
+  if (!file) return res.send("Erro ao fazer upload.");
+  res.redirect(`/upload/${file.filename}`);
 });
 
-// Página pós-upload
+// Página com botão de download e link
 app.get('/upload/:filename', (req, res) => {
-  const file = req.params.filename;
-  const fullUrl = `${req.protocol}://${req.get('host')}/${file}`;
+  const filename = req.params.filename;
+  const fileUrl = `/uploads/${filename}`;
 
   res.send(`
-  <!DOCTYPE html>
-  <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>EQP IMP - UPLOAD</title>
-    <style>
-      * {
-        margin: 0; padding: 0; box-sizing: border-box;
-      }
-      body {
-        font-family: 'Arial', sans-serif;
-        background: radial-gradient(circle at top, #111, #000);
-        color: white;
-        text-align: center;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        animation: fadeIn 1.2s ease;
-        padding: 20px;
-      }
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      h1 {
-        font-size: 2.4em;
-        margin-bottom: 20px;
-        color: #0ff;
-        text-shadow: 0 0 10px #0ff8, 0 0 20px #0ff4;
-        animation: float 2.5s ease-in-out infinite;
-      }
-      @keyframes float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-8px); }
-      }
-      img {
-        max-width: 90vw;
-        max-height: 60vh;
-        border-radius: 15px;
-        box-shadow: 0 0 15px #0ff4;
-        margin-bottom: 20px;
-      }
-      .link-box {
-        background: rgba(255,255,255,0.1);
-        padding: 10px 15px;
-        border-radius: 12px;
-        width: 90%;
-        max-width: 500px;
-        margin-bottom: 25px;
-        user-select: all;
-        font-size: 1.1em;
-        overflow-wrap: break-word;
-      }
-      button {
-        padding: 12px 28px;
-        background: linear-gradient(45deg, #0ff, #08f, #0ff);
-        border: none;
-        border-radius: 12px;
-        color: black;
-        font-weight: bold;
-        font-size: 1.2em;
-        cursor: pointer;
-        animation: pulse 3s infinite;
-        transition: all 0.3s ease;
-        user-select: none;
-      }
-      button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 0 25px #0ff8;
-      }
-      @keyframes pulse {
-        0%, 100% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-      }
-    </style>
-  </head>
-  <body>
-    <h1>EQP IMP - UPLOAD</h1>
-    <img src="/${file}" alt="Imagem enviada" />
-    <div class="link-box" id="link">${fullUrl}</div>
-    <button id="btnDownload">Baixar Imagem</button>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload feito com sucesso!</title>
+  <style>
+    body {
+      background: #0f0f0f;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: sans-serif;
+      animation: fadeIn 1s ease-in-out;
+    }
 
-    <script>
-      const btnDownload = document.getElementById('btnDownload');
-      const linkBox = document.getElementById('link');
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
 
-      btnDownload.addEventListener('click', () => {
-        let seconds = 3;
-        btnDownload.textContent = \`Iniciando download em \${seconds}...\`;
-        const interval = setInterval(() => {
-          seconds--;
-          if(seconds > 0) {
-            btnDownload.textContent = \`Iniciando download em \${seconds}...\`;
-          } else {
-            clearInterval(interval);
-            btnDownload.textContent = 'Baixar Imagem';
+    h2 {
+      margin-bottom: 20px;
+      text-align: center;
+    }
 
-            const a = document.createElement('a');
-            a.href = '${fullUrl}';
-            a.download = '${file}';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-          }
-        }, 1000);
-      });
+    input {
+      width: 90%;
+      max-width: 400px;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: none;
+      border-radius: 8px;
+      background: #222;
+      color: #0ff;
+      font-weight: bold;
+      text-align: center;
+    }
 
-      linkBox.addEventListener('click', () => {
-        navigator.clipboard.writeText(linkBox.textContent)
-          .then(() => alert('Link copiado!'))
-          .catch(() => alert('Falha ao copiar link.'));
-      });
-    </script>
-  </body>
-  </html>
+    button {
+      padding: 12px 25px;
+      font-size: 16px;
+      background: linear-gradient(45deg, #0ff, #0f8);
+      border: none;
+      border-radius: 10px;
+      color: #000;
+      cursor: pointer;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); box-shadow: 0 0 10px #0ff7; }
+      50% { transform: scale(1.05); box-shadow: 0 0 25px #0ff; }
+      100% { transform: scale(1); box-shadow: 0 0 10px #0ff7; }
+    }
+
+    .msg {
+      margin-top: 15px;
+      color: #0f0;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h2>Imagem enviada com sucesso!</h2>
+  <input type="text" value="${req.protocol}://${req.get('host')}/uploads/${filename}" id="link" readonly />
+  <button onclick="startDownload()">Baixar</button>
+  <div class="msg" id="msg"></div>
+
+  <script>
+    function startDownload() {
+      document.getElementById('msg').innerText = "Iniciando download em 3 segundos...";
+      setTimeout(() => {
+        window.location.href = "${fileUrl}";
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
   `);
 });
 
-app.listen(PORT, () => console.log(`🔥 EQP IMP UPLOAD rodando em http://localhost:${PORT}`));
+// Iniciar servidor
+app.listen(PORT, () => {
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
+});
